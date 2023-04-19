@@ -132,7 +132,7 @@ fn read_link<R: Read>(r: &mut R) -> Result<(u64, Hash), ParseError> {
     }
     let bytes = read_bytes(r, len as usize)?;
     if bytes[0] != 0 {
-        return Err(ParseError::InvalidCidPrefix(bytes[0]).into());
+        return Err(ParseError::InvalidCidPrefix(bytes[0]));
     }
 
     if bytes.len() < 32 {
@@ -155,7 +155,7 @@ fn read_link<R: Read>(r: &mut R) -> Result<(u64, Hash), ParseError> {
         return Err(ParseError::InvalidHashLength);
     }
     let bytes = <[u8; 32]>::try_from(rest).unwrap();
-    Ok((codec, Hash::from(bytes)))
+    Ok((codec, bytes))
 }
 
 /// Reads the len given a base.
@@ -183,7 +183,7 @@ fn read_len<R: Read + Seek>(r: &mut R, major: u8) -> Result<usize, ParseError> {
 ///
 /// Will fail unless all links are blake3 hashes.
 pub fn references<R: Read + Seek>(r: &mut R, res: &mut Vec<(u64, Hash)>) -> Result<(), ParseError> {
-    let major = read_u8(r).map_err(|e| ParseError::from(e))?;
+    let major = read_u8(r)?;
     match major {
         // Major type 0: an unsigned integer
         0x00..=0x17 => {}
