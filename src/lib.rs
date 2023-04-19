@@ -1,4 +1,4 @@
-//! CBOR decoder
+//! CBOR IPLD link extractor.
 use std::{
     fmt,
     io::{self, Read, Seek, SeekFrom},
@@ -11,23 +11,23 @@ pub type Hash = [u8; 32];
 /// Parse error
 #[derive(Debug)]
 pub enum ParseError {
-    /// Unexpected end of file
+    /// Unexpected end of stream
     UnexpectedEof,
     /// Unexpected code
-    UnexpectedCode(u8),
+    UnexpectedCborCode(u8),
     /// Unknown cbor tag
-    UnknownTag(u8),
+    UnknownCborTag(u8),
     /// Invalid cid prefix
     InvalidCidPrefix(u8),
     /// Invalid length
     LengthOutOfRange,
     /// Invalid varint
     InvalidVarint,
-    /// Invalid cid version
+    /// Invalid cid version. Only cidv1 is supported.
     InvalidCidVersion,
-    /// Invalid hash algorithm (not blake3)
+    /// Invalid hash algorithm. Only blake3 is supported.
     InvalidHashAlgorithm,
-    /// Invalid hash length (not 32)
+    /// Invalid hash length. Blake3 hashes are always 32 bytes.
     InvalidHashLength,
     /// Generic io error
     IoError(io::Error),
@@ -85,6 +85,8 @@ fn read_u64<R: Read>(r: &mut R) -> io::Result<u64> {
     Ok(u64::from_be_bytes(buf))
 }
 
+/// Reads a varint from a slice. Will panic if the slice is too short, so make
+/// sure to check the length before calling this function.
 fn parse_u64_varint(mut input: &[u8]) -> Result<(u64, &[u8]), ParseError> {
     let mut value: u64 = 0;
     let mut shift: u32 = 0;
@@ -124,7 +126,7 @@ fn read_bytes<R: Read>(r: &mut R, len: usize) -> result::Result<Vec<u8>, ParseEr
 fn read_link<R: Read>(r: &mut R) -> Result<(u64, Hash), ParseError> {
     let ty = read_u8(r)?;
     if ty != 0x58 {
-        return Err(ParseError::UnknownTag(ty));
+        return Err(ParseError::UnknownCborTag(ty));
     }
     let len = read_u8(r)?;
     if len == 0 {
@@ -172,7 +174,7 @@ fn read_len<R: Read + Seek>(r: &mut R, major: u8) -> Result<usize, ParseError> {
             }
             len as usize
         }
-        major => return Err(ParseError::UnexpectedCode(major)),
+        major => return Err(ParseError::UnexpectedCborCode(major)),
     })
 }
 
@@ -289,7 +291,7 @@ pub fn references<R: Read + Seek>(r: &mut R, res: &mut Vec<(u64, Hash)>) -> Resu
         0xfb => {
             r.seek(SeekFrom::Current(8))?;
         }
-        major => return Err(ParseError::UnexpectedCode(major)),
+        major => return Err(ParseError::UnexpectedCborCode(major)),
     };
     Ok(())
 }
